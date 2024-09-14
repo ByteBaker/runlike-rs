@@ -1,0 +1,147 @@
+name: Release Artifacts
+
+on:
+  push:
+    branches:
+      - release
+
+jobs:
+  build:
+    runs-on: ${{ matrix.config.os }}
+
+    strategy:
+      matrix:
+        config:
+          - os: ubuntu-latest
+            tag: linux-amd64
+            is_version_job: true  # Designate one job for versioning
+          - os: windows-latest
+            tag: windows-amd64
+            is_version_job: false
+          - os: macos-latest
+            tag: macos-amd64
+            is_version_job: false
+
+    steps:
+      # Checkout the repository
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      # Install Rust
+      - name: Set up Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          profile: minimal
+          override: true
+
+      # Build the project
+      - name: Build the project
+        run: cargo build --release
+
+      # Get the version from Cargo.toml
+      - name: Get version from Cargo.toml
+        id: get_version
+        if: matrix.config.is_version_job == true
+        run: |
+          # Extract the version from Cargo.toml
+          version=$(cargo pkgid | cut -d "@" -f2)
+          echo "VERSION=$version" >> $GITHUB_ENV
+          echo "$version" > version.txt
+
+      # Upload the binary as an artifact, correctly naming it based on platform
+      - name: Upload binary artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: runlike-${{ matrix.config.tag }}
+          path: |
+            target/release/runlike${{ matrix.config.os == 'windows-latest' && '.exe' || '' }}
+
+      - name: Upload version file
+        if: matrix.config.is_version_job == true
+        uses: actions/upload-artifact@v4
+        with:
+          name: project-version
+          path: version.txt
+
+  release:
+    runs-on: ubuntu-latest
+    needs: build
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # Download the build artifacts from the build job
+      - name: Download Linux binary
+        uses: actions/download-artifact@v4
+        with:
+          name: runlike-linux-amd64
+
+      - name: Download MacOS binary
+        uses: actions/download-artifact@v4
+        with:
+          name: runlike-macos-amd64
+
+      - name: Download Windows binary
+        uses: actions/download-artifact@v4
+        with:
+          name: runlike-windows-amd64
+
+      - name: Download version file
+        uses: actions/download-artifact@v4
+        with:
+          name: project-version
+
+      # Read the version from the version file
+      - name: Read version
+        id: read_version
+        run: |
+          VERSION=$(cat version.txt)
+          echo "VERSION=$VERSION" >> $GITHUB_ENV
+          echo "Version is $VERSION"
+
+      # Create a new GitHub release and upload binaries
+      - name: Create GitHub Release
+        id: create_release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: v${{ env.VERSION }}
+          release_name: "v${{ env.VERSION }}"
+          draft: false
+          prerelease: false
+
+      # Upload the compiled binaries to the created release
+      - name: Upload Linux binary to release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        uses: actions/upload-release-asset@v1
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: runlike
+          asset_name: runlike-linux-amd64
+          asset_content_type: application/octet-stream
+
+      # Upload the compiled binaries to the created release
+      - name: Upload MacOS binary to release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        uses: actions/upload-release-asset@v1
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: runlike
+          asset_name: runlike-macos-amd64
+          asset_content_type: application/octet-stream
+
+      # Upload the compiled binaries to the created release
+      - name: Upload Windows binary to release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        uses: actions/upload-release-asset@v1
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: runlike.exe
+          asset_name: runlike-windows-amd64.exe
+          asset_content_type: application/octet-stream
