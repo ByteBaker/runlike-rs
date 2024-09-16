@@ -4,12 +4,15 @@ use std::{
     process::Command,
 };
 
-use crate::{args::CliArgs, model};
+use crate::{
+    args::CliArgs,
+    model::{self, DockerInspect},
+};
 
 /// Options for parsing and printing
 #[derive(Debug)]
 pub(super) struct Options {
-    inspect: model::DockerInspect,
+    inspect: DockerInspect,
     pretty: bool,
     no_name: bool,
 }
@@ -98,7 +101,7 @@ impl Options {
     pub(super) fn try_new() -> Result<Self, String> {
         let args = CliArgs::parse();
 
-        Options::try_from(args)
+        Self::try_from(args)
     }
     pub(super) fn print(&self) {
         let inspect = &self.inspect;
@@ -120,7 +123,7 @@ impl Options {
         arg!(inspect.host_config.cpuset_cpus; out | sep, "--cpuset-cpus=");
         arg!(inspect.host_config.cpuset_mems; out | sep, "--cpuset-mems=");
 
-        arg!(if inspect.host_config.network_mode.eq("default"); out | sep, "--network=", inspect.host_config.network_mode);
+        arg!(if !matches!(inspect.host_config.network_mode.as_str(), "default" | "bridge"); out | sep, "--network=", inspect.host_config.network_mode);
         arg!(if inspect.host_config.privileged; out | sep, "--privileged");
 
         arg!(inspect.host_config.runtime; out | sep, "--runtime=");
