@@ -1,4 +1,4 @@
-use crate::util::empty_string_is_none;
+use crate::util::{empty_string_is_none, null_to_default};
 use serde::Deserialize;
 
 #[derive(Deserialize, Debug)]
@@ -38,12 +38,18 @@ pub struct HostConfig {
 
     #[serde(rename = "Privileged")]
     pub privileged: bool,
+
+    #[serde(rename = "Binds", default, deserialize_with = "null_to_default")]
+    pub binds: Vec<String>,
 }
 
 #[derive(Deserialize, Debug)]
 pub struct Config {
     #[serde(rename = "Hostname")]
     pub hostname: String,
+
+    #[serde(rename = "Env")]
+    pub env: Vec<String>,
 
     #[serde(rename = "AttachStdout")]
     pub attach_stdout: bool,
@@ -65,6 +71,9 @@ pub struct Config {
 
     #[serde(rename = "MacAddress")]
     pub mac_address: Option<String>,
+
+    #[serde(rename = "Volumes", default, deserialize_with = "null_to_default")]
+    pub volumes: Vec<String>,
 }
 
 #[derive(Deserialize, Debug)]
