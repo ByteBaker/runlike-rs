@@ -1,18 +1,17 @@
 use clap::Parser;
-use std::{
-    io::{self, Write},
-    process::Command,
-};
+use std::io::{self, Write};
 
 use crate::{
     args::CliArgs,
-    model::{self, DockerInspect},
+    model::{self, DockerInspect, ImageInspect},
+    util::run_docker_inspect,
 };
 
 /// Options for parsing and printing
 #[derive(Debug)]
 pub(super) struct Options {
-    inspect: DockerInspect,
+    container: DockerInspect,
+    image: ImageInspect,
     pretty: bool,
     no_name: bool,
 }
@@ -31,10 +30,7 @@ impl TryFrom<CliArgs> for Options {
         let mut stdout = vec![];
         let mut stderr = vec![];
         if let Some(container) = container.as_deref() {
-            let output = Command::new("docker")
-                .args(["inspect", container])
-                .output()
-                .map_err(|_| "FATAL: docker is not installed")?;
+            let output = run_docker_inspect("container", container)?;
 
             stdout = output.stdout;
             stderr = output.stderr;
@@ -63,14 +59,27 @@ impl TryFrom<CliArgs> for Options {
 
         match serde_json::from_slice::<Vec<model::DockerInspect>>(&stdout) {
             Ok(mut arr) if !arr.is_empty() => {
-                let inspect = arr.remove(0);
+                let container = arr.remove(0);
+
+                let image = if !stdin {
+                    let stdout = run_docker_inspect("image", &container.config.image)?.stdout;
+                    serde_json::from_slice::<Vec<model::ImageInspect>>(&stdout)
+                        .map_err(|e| {
+                            format!("Failed to parse 'docker image inspect' output: {e:?}")
+                        })?
+                        .remove(0)
+                } else {
+                    model::ImageInspect::default()
+                };
+
                 Ok(Self {
-                    inspect,
+                    container,
+                    image,
                     pretty,
                     no_name,
                 })
             }
-            _ => Err("Failed to parse 'docker inspect' output".to_string()),
+            e => Err(format!("Failed to parse 'docker inspect' output: {e:?}")),
         }
     }
 }
@@ -103,8 +112,10 @@ impl Options {
 
         Self::try_from(args)
     }
-    pub(super) fn print(&self) {
-        let inspect = &self.inspect;
+    pub(super) fn print(self) {
+        let inspect = &self.container;
+        let image = self.image;
+
         let sep = if self.pretty { " \\\n\t" } else { " " };
         let mut out = io::stdout();
 
@@ -123,8 +134,28 @@ impl Options {
         arg!(inspect.host_config.cpuset_cpus; out | sep, "--cpuset-cpus=");
         arg!(inspect.host_config.cpuset_mems; out | sep, "--cpuset-mems=");
 
+        for env_var in inspect
+            .config
+            .env
+            .iter()
+            .filter(|env_var| !image.config.env.contains(*env_var))
+        {
+            arg!(out | sep, "--env=", '"', env_var, '"');
+        }
+
+        for mount in inspect
+            .host_config
+            .binds
+            .iter()
+            .chain(inspect.config.volumes.iter())
+            .filter(|mnt| !image.config.volumes.contains(*mnt))
+        {
+            arg!(out | sep, "--volume=", '"', mount, '"');
+        }
+
         arg!(if !matches!(inspect.host_config.network_mode.as_str(), "default" | "bridge"); out | sep, "--network=", inspect.host_config.network_mode);
         arg!(if inspect.host_config.privileged; out | sep, "--privileged");
+        arg!(inspect.config.working_dir; out | sep, "--workdir=");
 
         arg!(inspect.host_config.runtime; out | sep, "--runtime=");
 
@@ -132,7 +163,7 @@ impl Options {
         arg!(if inspect.host_config.auto_remove; out | sep, "--rm");
         arg!(inspect.config.user; out | sep, "--user=");
         arg!(if inspect.config.tty; out | sep, "-t");
-        arg!(inspect.config.working_dir; out | sep, "--workdir=");
+
         arg!(out | sep, inspect.config.image);
 
         arg!(inspect.config.cmd.first(); out);

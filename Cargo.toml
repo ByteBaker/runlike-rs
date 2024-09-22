@@ -6,6 +6,9 @@ edition = "2021"
 [profile.release]
 strip = true
 lto = true
+opt-level = "z"
+codegen-units = 1
+panic = "abort"
 
 [dependencies]
 clap = { version = "4.5.17", default-features = false, features = [
