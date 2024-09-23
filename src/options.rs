@@ -84,6 +84,7 @@ impl TryFrom<CliArgs> for Options {
     }
 }
 
+/// Writes arguments to the output
 macro_rules! arg {
     // Matches a boolean before writing to the output
     (if $eval: expr ; $cmd: ident $(|$delim: ident)? $(, $parts: expr)+) => {
@@ -106,12 +107,22 @@ macro_rules! arg {
     };
 }
 
+/// Writes multiple arguments to the output, excluding any that are in the image config
+macro_rules! multi_arg_excl_image {
+    ($cmd: ident | $delim: ident | $opt: expr => $src: expr $(, $image_cfg: expr)?) => {{
+        for field in $src.iter()$(.filter(|mnt| !$image_cfg.contains(*mnt)))? {
+            arg!($cmd | $delim, $opt, '"', field, '"');
+        }
+    }};
+}
+
 impl Options {
     pub(super) fn try_new() -> Result<Self, String> {
         let args = CliArgs::parse();
 
         Self::try_from(args)
     }
+
     pub(super) fn print(self) {
         let inspect = &self.container;
         let image = self.image;
@@ -123,6 +134,7 @@ impl Options {
 
         arg!(if !self.no_name; out | sep, "--name=", inspect.name.trim_start_matches('/'));
         arg!(out | sep, "--hostname=", inspect.config.hostname);
+        arg!(inspect.config.user; out | sep, "--user=");
 
         arg!(inspect
             .config
@@ -134,35 +146,23 @@ impl Options {
         arg!(inspect.host_config.cpuset_cpus; out | sep, "--cpuset-cpus=");
         arg!(inspect.host_config.cpuset_mems; out | sep, "--cpuset-mems=");
 
-        for env_var in inspect
-            .config
-            .env
-            .iter()
-            .filter(|env_var| !image.config.env.contains(*env_var))
-        {
-            arg!(out | sep, "--env=", '"', env_var, '"');
-        }
-
-        for mount in inspect
-            .host_config
-            .binds
-            .iter()
-            .chain(inspect.config.volumes.iter())
-            .filter(|mnt| !image.config.volumes.contains(*mnt))
-        {
-            arg!(out | sep, "--volume=", '"', mount, '"');
-        }
+        multi_arg_excl_image!(out | sep | "--env" => inspect.config.env, image.config.env);
+        multi_arg_excl_image!(out | sep | "--volume" => inspect.host_config.binds, image.host_config.binds);
+        multi_arg_excl_image!(out | sep | "--volume" => inspect.config.volumes, image.config.volumes);
+        multi_arg_excl_image!(out | sep | "--volumes-from" => inspect.host_config.volumes_from, image.host_config.volumes_from);
+        multi_arg_excl_image!(out | sep | "--cap-add" => inspect.host_config.cap_add, image.host_config.cap_add);
+        multi_arg_excl_image!(out | sep | "--cap-drop" => inspect.host_config.cap_drop, image.host_config.cap_drop);
+        multi_arg_excl_image!(out | sep | "--dns" => inspect.host_config.dns, image.host_config.dns);
 
         arg!(if !matches!(inspect.host_config.network_mode.as_str(), "default" | "bridge"); out | sep, "--network=", inspect.host_config.network_mode);
         arg!(if inspect.host_config.privileged; out | sep, "--privileged");
-        arg!(inspect.config.working_dir; out | sep, "--workdir=");
 
+        arg!(inspect.config.working_dir; out | sep, "--workdir=");
         arg!(inspect.host_config.runtime; out | sep, "--runtime=");
 
         arg!(if !inspect.config.attach_stdout; out | sep, "--detach=true");
-        arg!(if inspect.host_config.auto_remove; out | sep, "--rm");
-        arg!(inspect.config.user; out | sep, "--user=");
         arg!(if inspect.config.tty; out | sep, "-t");
+        arg!(if inspect.host_config.auto_remove; out | sep, "--rm");
 
         arg!(out | sep, inspect.config.image);
 

@@ -41,6 +41,18 @@ pub struct HostConfig {
 
     #[serde(rename = "Binds", default, deserialize_with = "null_to_default")]
     pub binds: Vec<String>,
+
+    #[serde(rename = "VolumesFrom", default, deserialize_with = "null_to_default")]
+    pub volumes_from: Vec<String>,
+
+    #[serde(rename = "CapAdd", default, deserialize_with = "null_to_default")]
+    pub cap_add: Vec<String>,
+
+    #[serde(rename = "CapDrop", default, deserialize_with = "null_to_default")]
+    pub cap_drop: Vec<String>,
+
+    #[serde(rename = "Dns", default, deserialize_with = "null_to_default")]
+    pub dns: Vec<String>,
 }
 
 #[derive(Deserialize, Debug)]
