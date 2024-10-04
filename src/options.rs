@@ -3,7 +3,7 @@ use std::io::{self, Write};
 
 use crate::{
     args::CliArgs,
-    model::{self, DockerInspect, ImageInspect},
+    model::{self, AttrPrinter, DockerInspect, ImageInspect},
     util::run_docker_inspect,
 };
 
@@ -133,7 +133,7 @@ impl Options {
         arg!(out, "docker run ");
 
         arg!(if !self.no_name; out | sep, "--name=", inspect.name.trim_start_matches('/'));
-        arg!(out | sep, "--hostname=", inspect.config.hostname);
+        arg!(if !inspect.id.starts_with(&inspect.config.hostname); out | sep, "--hostname=", inspect.config.hostname);
         arg!(inspect.config.user; out | sep, "--user=");
 
         arg!(inspect
@@ -146,19 +146,34 @@ impl Options {
         arg!(inspect.host_config.cpuset_cpus; out | sep, "--cpuset-cpus=");
         arg!(inspect.host_config.cpuset_mems; out | sep, "--cpuset-mems=");
 
-        multi_arg_excl_image!(out | sep | "--env" => inspect.config.env, image.config.env);
-        multi_arg_excl_image!(out | sep | "--volume" => inspect.host_config.binds, image.host_config.binds);
-        multi_arg_excl_image!(out | sep | "--volume" => inspect.config.volumes, image.config.volumes);
-        multi_arg_excl_image!(out | sep | "--volumes-from" => inspect.host_config.volumes_from, image.host_config.volumes_from);
-        multi_arg_excl_image!(out | sep | "--cap-add" => inspect.host_config.cap_add, image.host_config.cap_add);
-        multi_arg_excl_image!(out | sep | "--cap-drop" => inspect.host_config.cap_drop, image.host_config.cap_drop);
-        multi_arg_excl_image!(out | sep | "--dns" => inspect.host_config.dns, image.host_config.dns);
+        multi_arg_excl_image!(out | sep | "--env=" => inspect.config.env, image.config.env);
+        multi_arg_excl_image!(out | sep | "--volume=" => inspect.host_config.binds, image.host_config.binds);
+        multi_arg_excl_image!(out | sep | "--volumes-from=" => inspect.host_config.volumes_from, image.host_config.volumes_from);
+        multi_arg_excl_image!(out | sep | "--cap-add=" => inspect.host_config.cap_add, image.host_config.cap_add);
+        multi_arg_excl_image!(out | sep | "--cap-drop=" => inspect.host_config.cap_drop, image.host_config.cap_drop);
+        multi_arg_excl_image!(out | sep | "--dns=" => inspect.host_config.dns, image.host_config.dns);
 
         arg!(if !matches!(inspect.host_config.network_mode.as_str(), "default" | "bridge"); out | sep, "--network=", inspect.host_config.network_mode);
         arg!(if inspect.host_config.privileged; out | sep, "--privileged");
 
         arg!(inspect.config.working_dir; out | sep, "--workdir=");
+
+        arg!(inspect.host_config.restart_policy.print(); out | sep, "--restart=");
+
+        for device in inspect.host_config.devices.iter() {
+            arg!(out | sep, "--device ", device);
+        }
+
+        arg!(inspect.network_settings.ports.print(); out | sep);
+
+        for host in inspect.host_config.extra_hosts.iter() {
+            arg!(out | sep, "--add-host", " ", host);
+        }
+
         arg!(inspect.host_config.runtime; out | sep, "--runtime=");
+
+        arg!(if !inspect.host_config.memory == 0; out | sep, "--memory=", '"', inspect.host_config.memory, '"');
+        arg!(if !inspect.host_config.memory_reservation == 0; out | sep, "--memory-reservation=", '"', inspect.host_config.memory_reservation, '"');
 
         arg!(if !inspect.config.attach_stdout; out | sep, "--detach=true");
         arg!(if inspect.config.tty; out | sep, "-t");
