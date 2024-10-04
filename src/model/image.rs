@@ -15,8 +15,6 @@ pub struct ImageInspect {
 pub struct ImageConfig {
     #[serde(rename = "Env")]
     pub env: HashSet<String>,
-    #[serde(rename = "Volumes", default, deserialize_with = "null_to_default")]
-    pub volumes: HashSet<String>,
 }
 
 #[derive(Deserialize, Debug, Default)]
