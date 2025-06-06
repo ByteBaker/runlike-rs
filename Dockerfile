@@ -1,6 +1,6 @@
 FROM rust:latest AS builder
 
-# Alipne uses musl instead of glibc
+# Alpine uses musl instead of glibc
 RUN rustup target add x86_64-unknown-linux-musl
 
 WORKDIR /app
