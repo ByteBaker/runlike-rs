@@ -15,6 +15,12 @@ pub struct ImageInspect {
 pub struct ImageConfig {
     #[serde(rename = "Env")]
     pub env: HashSet<String>,
+
+    #[serde(rename = "Entrypoint", default, deserialize_with = "null_to_default")]
+    pub entrypoint: Vec<String>,
+
+    #[serde(rename = "Labels", default, deserialize_with = "null_to_default")]
+    pub labels: std::collections::BTreeMap<String, String>,
 }
 
 #[derive(Deserialize, Debug, Default)]

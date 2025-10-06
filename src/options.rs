@@ -159,6 +159,11 @@ impl Options {
         arg!(inspect.config.working_dir; out | sep, "--workdir=");
 
         arg!(inspect.host_config.restart_policy.print(); out | sep, "--restart=");
+        arg!(inspect.host_config.log_config.print(); out | sep, "--log-driver=");
+
+        for (key, value) in inspect.host_config.log_config.config.iter() {
+            arg!(out | sep, "--log-opt ", key, "=", value);
+        }
 
         for device in inspect.host_config.devices.iter() {
             arg!(out | sep, "--device ", device);
@@ -179,9 +184,35 @@ impl Options {
         arg!(if inspect.config.tty; out | sep, "-t");
         arg!(if inspect.host_config.auto_remove; out | sep, "--rm");
 
+        for (key, value) in inspect
+            .config
+            .labels
+            .iter()
+            .filter(|(k, v)| image.config.labels.get(*k) != Some(*v))
+        {
+            arg!(out | sep, "--label=\"", key, "=", value, "\"");
+        }
+
+        if !inspect.config.entrypoint.is_empty()
+            && inspect.config.entrypoint != image.config.entrypoint
+        {
+            if inspect.config.entrypoint.len() == 1 {
+                arg!(out | sep, "--entrypoint=", inspect.config.entrypoint[0]);
+            } else {
+                arg!(out | sep, "--entrypoint='[");
+                for (i, part) in inspect.config.entrypoint.iter().enumerate() {
+                    if i > 0 {
+                        arg!(out, ", ");
+                    }
+                    arg!(out, "\"", part, "\"");
+                }
+                arg!(out, "]'");
+            }
+        }
+
         arg!(out | sep, inspect.config.image);
 
-        arg!(inspect.config.cmd.first(); out);
+        arg!(inspect.config.cmd.first(); out, " ");
 
         for c in inspect.config.cmd.iter().skip(1) {
             arg!(out | c, " "); // Because these go together

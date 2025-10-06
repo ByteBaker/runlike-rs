@@ -51,7 +51,6 @@ Probably **shouldn't use this in production** yet. If you do, double check that 
                                        (host:ip)
       --cap-add list                   Add Linux capabilities
       --cap-drop list                  Drop Linux capabilities
-                                       (0-3, 0,1)
       --cpuset-cpus string             CPUs in which to allow execution
                                        (0-3, 0,1)
       --cpuset-mems string             MEMs in which to allow execution
@@ -60,8 +59,12 @@ Probably **shouldn't use this in production** yet. If you do, double check that 
       --device list                    Add a host device to the container
       --dns list                       Set custom DNS servers
   -e, --env list                       Set environment variables
+      --entrypoint string              Overwrite the default ENTRYPOINT
       --expose list                    Expose a port or a range of ports
   -h, --hostname string                Container host name
+  -l, --label list                     Set meta data on a container
+      --log-driver string              Logging driver for the container
+      --log-opt list                   Log driver options
       --mac-address string             Container MAC address (e.g.,
                                        92:d0:c6:0a:29:33)
   -m, --memory bytes                   Memory limit

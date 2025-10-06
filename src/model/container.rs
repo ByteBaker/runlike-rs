@@ -8,7 +8,7 @@ use std::{borrow::Cow, collections::BTreeMap, fmt::Display};
 /// Useful when the logic for printing attributes is complex
 /// and may not return a value for all cases
 pub trait AttrPrinter {
-    fn print(&self) -> Option<Cow<str>>;
+    fn print(&self) -> Option<Cow<'_, str>>;
 }
 
 #[derive(Deserialize, Debug)]
@@ -81,6 +81,9 @@ pub struct HostConfig {
 
     #[serde(rename = "RestartPolicy")]
     pub restart_policy: RestartPolicy,
+
+    #[serde(rename = "LogConfig")]
+    pub log_config: LogConfig,
 }
 
 #[derive(Deserialize, Debug)]
@@ -104,7 +107,7 @@ pub struct RestartPolicy {
 }
 
 impl AttrPrinter for RestartPolicy {
-    fn print(&self) -> Option<Cow<str>> {
+    fn print(&self) -> Option<Cow<'_, str>> {
         match self.name.as_str() {
             "always" => Some(Cow::Borrowed("always")),
             "unless-stopped" => Some(Cow::Borrowed("unless-stopped")),
@@ -114,6 +117,24 @@ impl AttrPrinter for RestartPolicy {
             ))),
             _ => None,
         }
+    }
+}
+
+#[derive(Deserialize, Debug)]
+pub struct LogConfig {
+    #[serde(rename = "Type")]
+    pub log_type: String,
+    #[serde(rename = "Config", default, deserialize_with = "null_to_default")]
+    pub config: BTreeMap<String, String>,
+}
+
+impl AttrPrinter for LogConfig {
+    fn print(&self) -> Option<Cow<'_, str>> {
+        // Only print if not using default json-file driver
+        if self.log_type == "json-file" || self.log_type.is_empty() {
+            return None;
+        }
+        Some(Cow::Borrowed(&self.log_type))
     }
 }
 
@@ -151,6 +172,9 @@ pub struct Config {
     #[serde(rename = "Cmd", default, deserialize_with = "null_to_default")]
     pub cmd: Vec<String>,
 
+    #[serde(rename = "Entrypoint", default, deserialize_with = "null_to_default")]
+    pub entrypoint: Vec<String>,
+
     #[serde(rename = "Image")]
     pub image: String,
 
@@ -159,6 +183,9 @@ pub struct Config {
 
     #[serde(rename = "MacAddress")]
     pub mac_address: Option<String>,
+
+    #[serde(rename = "Labels", default, deserialize_with = "null_to_default")]
+    pub labels: BTreeMap<String, String>,
 }
 
 #[derive(Deserialize, Debug)]
@@ -171,7 +198,7 @@ pub struct NetworkSettings {
 }
 
 impl AttrPrinter for Ports {
-    fn print(&self) -> Option<Cow<str>> {
+    fn print(&self) -> Option<Cow<'_, str>> {
         if self.0.is_empty() {
             return None;
         }
